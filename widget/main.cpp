@@ -18,6 +18,7 @@
 #include <QJsonValue>
 #include <QMenu>
 #include <QProcess>
+#include <QDebug>
 #include <QSocketNotifier>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
@@ -235,8 +236,8 @@ private:
         inactive_group->setExclusive(true);
 
         for (int value : INACTIVE_TIME_OPTIONS) {
-            const QString suffix = value == 1 ? QString() : QStringLiteral("s");
-            QString label        = value == 0 ? QObject::tr("0 (Disabled)") : QObject::tr("%1 minute%2").arg(value).arg(suffix);
+            const QString plural_suffix = value == 1 ? QString() : QStringLiteral("s");
+            QString label               = value == 0 ? QObject::tr("0 (Disabled)") : QObject::tr("%1 minute%2").arg(value).arg(plural_suffix);
             auto* action  = inactive_menu->addAction(label);
             action->setCheckable(true);
             action->setData(value);
@@ -495,6 +496,7 @@ private:
             return from_path;
         }
 
+        qWarning() << "Unable to locate headsetcontrol in the build directory or PATH.";
         return QStringLiteral("headsetcontrol");
     }
 
@@ -548,7 +550,12 @@ private:
         pending_inactive_apply_ = false;
 
         QFile file(config_path_);
-        if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+        if (!file.exists()) {
+            return;
+        }
+
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "Unable to read widget config:" << config_path_ << file.errorString();
             return;
         }
 
