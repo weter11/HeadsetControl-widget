@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - name: Linux
-            os: ubuntu-latest
+            os: ubuntu-24.04
             shell: bash
           - name: macOS
             os: macos-latest
@@ -57,7 +57,7 @@ jobs:
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
-          sudo apt-get install -y gcc-13 g++-13 libhidapi-dev
+          sudo apt-get install -y gcc-13 g++-13 libhidapi-dev libudev-dev qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools pkg-config
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
 

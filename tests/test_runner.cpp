@@ -26,6 +26,7 @@ void runAllDeviceRegistryTests();
 void runAllStringEscapingTests();
 void runAllLibraryApiTests();
 void runAllProtocolTests();
+void runAllWidgetLogicTests();
 }
 
 int main()
@@ -66,6 +67,9 @@ int main()
 
         // Run protocol tests
         headsetcontrol::testing::runAllProtocolTests();
+
+        // Run widget logic tests
+        headsetcontrol::testing::runAllWidgetLogicTests();
 
         std::cout << "\n====================================================================" << std::endl;
         std::cout << "                    All tests passed successfully!                  " << std::endl;

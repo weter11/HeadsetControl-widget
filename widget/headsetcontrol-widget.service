@@ -1,0 +1,13 @@
+[Unit]
+Description=HeadsetControl tray widget
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/headsetcontrol-widget
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

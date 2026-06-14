@@ -26,6 +26,10 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(cli)
 
+if(UNIX AND NOT APPLE)
+    add_subdirectory(widget)
+endif()
+
 if(PROJECT_IS_TOP_LEVEL)
     add_subdirectory(tests)
 endif()
@@ -364,7 +368,7 @@ if(PROJECT_IS_TOP_LEVEL)
     if(BUILD_UNIT_TESTS)
         add_executable(headsetcontrol_tests ${TEST_SOURCES})
         target_link_libraries(headsetcontrol_tests PRIVATE headsetcontrol_lib)
-        target_include_directories(headsetcontrol_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cli)
+        target_include_directories(headsetcontrol_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cli ${CMAKE_CURRENT_SOURCE_DIR}/widget)
 
         add_test(NAME unit_mock_devices
                 COMMAND headsetcontrol_tests
@@ -414,6 +418,9 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "libhidapi-hidraw0 | libhidapi-libusb0")
+    if(TARGET headsetcontrol-widget)
+        string(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS ", libqt6core6 (>= 6.4), libqt6gui6 (>= 6.4), libqt6widgets6 (>= 6.4), libqt6dbus6 (>= 6.4), libudev1")
+    endif()
     set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Sapd/HeadsetControl")
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 

@@ -242,9 +242,29 @@ For development without hardware:
 headsetcontrol --test-device -b
 ```
 
+## System Tray Widget
+
+This repository now also builds `headsetcontrol-widget`, a Linux tray applet that wraps the CLI with a persistent menu, battery notifications, and hover status updates.
+
+- **Toolkit:** Qt 6 (`QSystemTrayIcon`, `QMenu`, `Qt DBus`)
+- **Runtime state:** `~/.config/headsetcontrol-widget/config.json`
+- **Auto-start example:** `/usr/share/headsetcontrol-widget/examples/headsetcontrol-widget.service` after `make install`
+
+Build it together with the CLI on Linux by installing the additional dependencies:
+
+```bash
+apt-get install libhidapi-dev libudev-dev qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools
+cmake ..
+make
+./headsetcontrol-widget
+```
+
+The widget polls headset state on a short timer, listens for `hidraw` udev events to refresh quickly on connect/disconnect, and stores notification/sidetone/inactive-time preferences across restarts.
+
 ## GUI Applications
 
 ### Linux
+- `headsetcontrol-widget` - Built-in StatusNotifierItem-compatible tray widget for KDE Plasma and XFCE
 - [gnome-shell-extension-HeadsetControl](https://github.com/ChrisLauinger77/gnome-shell-extension-HeadsetControl/) - GNOME shell extension (GNOME 42+)
 - [headset-charge-indicator](https://github.com/centic9/headset-charge-indicator/) - System tray with controls (Python)
 - [headset-battery-indicator](https://github.com/ruflas/headset-battery-indicator) - Tray icon with ChatMix, Sidetone controls (Python/Qt)
