@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release
+
+override_dh_auto_install:
+	install -D -m 755 target/release/headsetcontrol-tray $(DESTDIR)/usr/bin/headsetcontrol-tray
+	install -D -m 644 headsetcontrol-tray.desktop $(DESTDIR)/usr/share/applications/headsetcontrol-tray.desktop
+	install -D -m 644 headsetcontrol-tray.desktop $(DESTDIR)/etc/xdg/autostart/headsetcontrol-tray.desktop
+	install -D -m 644 headsetcontrol-tray.service $(DESTDIR)/usr/lib/systemd/user/headsetcontrol-tray.service

@@ -16,4 +16,5 @@ cmake-build-debug/
 
 .DS_Store
 
-Testing/
+Testing/target/
+headsetcontrol-tray/target/
