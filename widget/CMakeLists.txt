@@ -6,6 +6,10 @@ add_executable(headsetcontrol-widget
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
 )
 
+set_target_properties(headsetcontrol-widget PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
 target_include_directories(headsetcontrol-widget PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
