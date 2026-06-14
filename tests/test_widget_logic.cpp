@@ -43,20 +43,20 @@ void testThresholdCrossingLogic()
 {
     std::cout << "  Testing widget notification thresholds..." << std::endl;
 
-    auto low = widget::evaluateNotificationThresholds(35, widget::PowerState::Discharging, 20, widget::PowerState::Discharging, 20, 80);
-    ASSERT_TRUE(low.discharge, "discharge threshold should trigger when crossed downward");
-    ASSERT_FALSE(low.charge, "charge threshold should not trigger on discharge");
+    auto discharge_threshold_crossed = widget::evaluateNotificationThresholds(35, widget::PowerState::Discharging, 20, widget::PowerState::Discharging, 20, 80);
+    ASSERT_TRUE(discharge_threshold_crossed.discharge, "discharge threshold should trigger when crossed downward");
+    ASSERT_FALSE(discharge_threshold_crossed.charge, "charge threshold should not trigger on discharge");
 
-    auto charge = widget::evaluateNotificationThresholds(70, widget::PowerState::Charging, 80, widget::PowerState::Charging, 20, 80);
-    ASSERT_FALSE(charge.discharge, "discharge threshold should not trigger while charging");
-    ASSERT_TRUE(charge.charge, "charge threshold should trigger when crossed upward");
+    auto charge_threshold_crossed = widget::evaluateNotificationThresholds(70, widget::PowerState::Charging, 80, widget::PowerState::Charging, 20, 80);
+    ASSERT_FALSE(charge_threshold_crossed.discharge, "discharge threshold should not trigger while charging");
+    ASSERT_TRUE(charge_threshold_crossed.charge, "charge threshold should trigger when crossed upward");
 
-    auto unchanged = widget::evaluateNotificationThresholds(19, widget::PowerState::Discharging, 18, widget::PowerState::Discharging, 20, 80);
-    ASSERT_FALSE(unchanged.discharge, "already-below threshold should not retrigger");
+    auto already_below_threshold = widget::evaluateNotificationThresholds(19, widget::PowerState::Discharging, 18, widget::PowerState::Discharging, 20, 80);
+    ASSERT_FALSE(already_below_threshold.discharge, "already-below threshold should not retrigger");
 
-    auto disabled = widget::evaluateNotificationThresholds(85, widget::PowerState::Charging, 100, widget::PowerState::Charging, 0, 0);
-    ASSERT_FALSE(disabled.discharge, "disabled discharge threshold should not trigger");
-    ASSERT_FALSE(disabled.charge, "disabled charge threshold should not trigger");
+    auto disabled_thresholds = widget::evaluateNotificationThresholds(85, widget::PowerState::Charging, 100, widget::PowerState::Charging, 0, 0);
+    ASSERT_FALSE(disabled_thresholds.discharge, "disabled discharge threshold should not trigger");
+    ASSERT_FALSE(disabled_thresholds.charge, "disabled charge threshold should not trigger");
 
     std::cout << "    OK widget notification thresholds" << std::endl;
 }

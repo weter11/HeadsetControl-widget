@@ -29,6 +29,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <memory>
 
 namespace {
 
@@ -42,6 +43,8 @@ using headsetcontrol::widget::evaluateNotificationThresholds;
 
 constexpr int REFRESH_INTERVAL_MS = 15000;
 constexpr int COMMAND_TIMEOUT_MS  = 8000;
+constexpr int PROCESS_KILL_TIMEOUT_MS = 1000;
+constexpr int SIDETONE_MAX_LEVEL = 128;
 
 struct WidgetConfig {
     int discharge_threshold         = 20;
@@ -115,9 +118,6 @@ public:
 
     ~HeadsetControlWidgetApp()
     {
-        if (udev_notifier_ != nullptr) {
-            delete udev_notifier_;
-        }
         if (udev_monitor_ != nullptr) {
             udev_monitor_unref(udev_monitor_);
         }
@@ -211,7 +211,7 @@ private:
         sidetone_group->setExclusive(true);
 
         for (int value : SIDETONE_LEVELS) {
-            const int percent = static_cast<int>((value * 100.0) / 128.0 + 0.5);
+            const int percent = static_cast<int>((value * 100.0) / SIDETONE_MAX_LEVEL + 0.5);
             auto* action      = sidetone_menu->addAction(QObject::tr("%1 (%2%)").arg(value).arg(percent));
             action->setCheckable(true);
             action->setData(value);
@@ -235,7 +235,8 @@ private:
         inactive_group->setExclusive(true);
 
         for (int value : INACTIVE_TIME_OPTIONS) {
-            QString label = value == 0 ? QObject::tr("0 (Disabled)") : QObject::tr("%1 minute%2").arg(value).arg(value == 1 ? "" : "s");
+            const QString suffix = value == 1 ? QString() : QStringLiteral("s");
+            QString label        = value == 0 ? QObject::tr("0 (Disabled)") : QObject::tr("%1 minute%2").arg(value).arg(suffix);
             auto* action  = inactive_menu->addAction(label);
             action->setCheckable(true);
             action->setData(value);
@@ -305,8 +306,8 @@ private:
             return;
         }
 
-        udev_notifier_ = new QSocketNotifier(fd, QSocketNotifier::Read);
-        QObject::connect(udev_notifier_, &QSocketNotifier::activated, [&](int) {
+        udev_notifier_ = std::make_unique<QSocketNotifier>(fd, QSocketNotifier::Read);
+        QObject::connect(udev_notifier_.get(), &QSocketNotifier::activated, [&](int) {
             if (udev_monitor_ == nullptr) {
                 return;
             }
@@ -434,7 +435,7 @@ private:
 
         if (!process.waitForFinished(COMMAND_TIMEOUT_MS)) {
             process.kill();
-            process.waitForFinished(1000);
+            process.waitForFinished(PROCESS_KILL_TIMEOUT_MS);
             result.timed_out = true;
             result.stderr_text = QObject::tr("Timed out waiting for headsetcontrol");
             return result;
@@ -615,7 +616,7 @@ private:
     bool pending_inactive_apply_ = false;
     struct udev* udev_context_ = nullptr;
     struct udev_monitor* udev_monitor_ = nullptr;
-    QSocketNotifier* udev_notifier_ = nullptr;
+    std::unique_ptr<QSocketNotifier> udev_notifier_;
 };
 
 } // namespace

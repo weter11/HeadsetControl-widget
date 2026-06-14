@@ -253,7 +253,7 @@ This repository now also builds `headsetcontrol-widget`, a Linux tray applet tha
 Build it together with the CLI on Linux by installing the additional dependencies:
 
 ```bash
-apt-get install libhidapi-dev libudev-dev qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools
+sudo apt-get install libhidapi-dev libudev-dev qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools
 cmake ..
 make
 ./headsetcontrol-widget
