@@ -5,13 +5,13 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCursor>
-#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -28,7 +28,6 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <format>
 #include <optional>
 
 namespace {
@@ -419,7 +418,7 @@ private:
                 << QVariantMap {}
                 << 5000;
 
-        QDBusConnection::sessionBus().asyncCall(message);
+        QDBusConnection::sessionBus().call(message, QDBus::NoBlock);
     }
 
     [[nodiscard]] CommandResult runHeadsetControl(const QStringList& arguments) const
@@ -474,7 +473,9 @@ private:
         QStringList command;
         if (state_.vendor_id != 0 && state_.product_id != 0) {
             command << QStringLiteral("-d")
-                    << QString::fromStdString(std::format("{:04x}:{:04x}", state_.vendor_id, state_.product_id));
+                    << QStringLiteral("%1:%2")
+                           .arg(state_.vendor_id, 4, 16, QChar('0'))
+                           .arg(state_.product_id, 4, 16, QChar('0'));
         }
         command << arguments;
         return command;
@@ -482,15 +483,15 @@ private:
 
     [[nodiscard]] QString headsetControlExecutable() const
     {
-        const QString from_path = QStandardPaths::findExecutable(QStringLiteral("headsetcontrol"));
-        if (!from_path.isEmpty()) {
-            return from_path;
-        }
-
         const QString app_dir = QCoreApplication::applicationDirPath();
         const QString local   = QDir(app_dir).filePath(QStringLiteral("headsetcontrol"));
         if (QFileInfo::exists(local)) {
             return local;
+        }
+
+        const QString from_path = QStandardPaths::findExecutable(QStringLiteral("headsetcontrol"));
+        if (!from_path.isEmpty()) {
+            return from_path;
         }
 
         return QStringLiteral("headsetcontrol");
