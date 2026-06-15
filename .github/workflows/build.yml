@@ -10,7 +10,7 @@ jobs:
     name: Build DEB
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -47,10 +47,16 @@ jobs:
           # -d skips build dependency checks as we use a custom Rust toolchain
           dpkg-buildpackage -us -uc -b -d
 
+      - name: Upload HeadsetControl binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: headsetcontrol-bin
+          path: build/headsetcontrol
+          retention-days: 30
+
       - name: Upload DEB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: headsetcontrol-tray-deb
           path: headsetcontrol-tray_*.deb
           retention-days: 30
-          compression-level: 0
