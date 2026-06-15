@@ -61,10 +61,11 @@ impl Tray for HeadsetTray {
             // Sidetone Submenu
             SubMenu {
                 label: "Sidetone Level".into(),
-                submenu: (0..=10).map(|i| {
-                    let level = (i * 128 / 10) as u8;
-                    let label = format!("{}%", i * 10);
-                    let is_active = (config.sidetone_level as i32 - level as i32).abs() < 7;
+                submenu: (0..10).map(|i| {
+                    let percentiles = [0, 14, 28, 42, 57, 71, 85, 99, 113, 128];
+                    let level = percentiles[i];
+                    let label = format!("Level {}", level);
+                    let is_active = (config.sidetone_level as i32 - level as i32).abs() < 5;
                     CheckmarkItem {
                         label,
                         checked: is_active,
