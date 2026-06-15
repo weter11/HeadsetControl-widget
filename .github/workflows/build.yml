@@ -44,7 +44,8 @@ jobs:
           # Build the project to ensure everything is correct
           cargo build --release
           # Package using dpkg-buildpackage
-          dpkg-buildpackage -us -uc -b
+          # -d skips build dependency checks as we use a custom Rust toolchain
+          dpkg-buildpackage -us -uc -b -d
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
