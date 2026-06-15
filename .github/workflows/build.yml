@@ -52,3 +52,4 @@ jobs:
           name: headsetcontrol-tray-deb
           path: headsetcontrol-tray_*.deb
           retention-days: 30
+          compression-level: 0
