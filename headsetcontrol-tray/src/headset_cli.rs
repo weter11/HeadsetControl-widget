@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::process::Command;
+use tokio::process::Command;
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(dead_code)]
@@ -26,10 +26,11 @@ pub struct HeadsetControlOutput {
     pub devices: Vec<DeviceInfo>,
 }
 
-pub fn get_headset_status() -> Result<HeadsetControlOutput, String> {
+pub async fn get_headset_status() -> Result<HeadsetControlOutput, String> {
     let output = Command::new("headsetcontrol")
         .args(&["-o", "json", "-b"])
         .output()
+        .await
         .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
 
     if !output.status.success() {
@@ -41,10 +42,11 @@ pub fn get_headset_status() -> Result<HeadsetControlOutput, String> {
         .map_err(|e| format!("Failed to parse headsetcontrol output: {}", e))
 }
 
-pub fn set_sidetone(level: u8) -> Result<(), String> {
+pub async fn set_sidetone(level: u8) -> Result<(), String> {
     let status = Command::new("headsetcontrol")
         .args(&["-s", &level.to_string()])
         .status()
+        .await
         .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
 
     if !status.success() {
@@ -53,10 +55,11 @@ pub fn set_sidetone(level: u8) -> Result<(), String> {
     Ok(())
 }
 
-pub fn set_inactive_time(minutes: u8) -> Result<(), String> {
+pub async fn set_inactive_time(minutes: u8) -> Result<(), String> {
     let status = Command::new("headsetcontrol")
         .args(&["-i", &minutes.to_string()])
         .status()
+        .await
         .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
 
     if !status.success() {
