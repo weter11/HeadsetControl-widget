@@ -30,13 +30,10 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Build HeadsetControl (Core)
+      - name: Build HeadsetControl (Core) DEB
         run: |
-          mkdir build
-          cd build
-          cmake ..
-          make -j$(nproc)
-          sudo make install
+          dpkg-buildpackage -us -uc -b
+          mv ../headsetcontrol_*.deb .
 
       - name: Build Tray Widget DEB
         run: |
@@ -46,15 +43,16 @@ jobs:
           # Package using dpkg-buildpackage
           # -d skips build dependency checks as we use a custom Rust toolchain
           dpkg-buildpackage -us -uc -b -d
+          # The DEB is now in the parent directory (repo root)
 
-      - name: Upload HeadsetControl binary
+      - name: Upload HeadsetControl DEB
         uses: actions/upload-artifact@v7
         with:
-          name: headsetcontrol-bin
-          path: build/headsetcontrol
+          name: headsetcontrol-deb
+          path: headsetcontrol_*.deb
           retention-days: 30
 
-      - name: Upload DEB artifact
+      - name: Upload Tray Widget DEB
         uses: actions/upload-artifact@v7
         with:
           name: headsetcontrol-tray-deb
