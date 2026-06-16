@@ -1,0 +1,14 @@
+Source: headsetcontrol
+Section: utils
+Priority: optional
+Maintainer: Jules <jules@example.com>
+Build-Depends: debhelper-compat (= 13), cmake, libhidapi-dev, g++
+Standards-Version: 4.6.2
+Homepage: https://github.com/Sapd/HeadsetControl
+
+Package: headsetcontrol
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Control USB gaming headsets
+ A tool to control USB gaming headsets on Linux.
+ Manage sidetone, battery status, LED lights, and more.

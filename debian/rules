@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release
+
+override_dh_auto_install:
+	dh_auto_install
+	# The default install might put udev rules in /usr/local or somewhere else
+	# Ensure they are in the correct Debian path if needed,
+	# but dh_auto_install usually respects DESTDIR.

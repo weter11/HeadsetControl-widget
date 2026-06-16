@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=HeadsetControl Tray
+Comment=Control your headset from the system tray
+Exec=headsetcontrol-tray
+Icon=headset
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

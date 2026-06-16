@@ -1,0 +1,14 @@
+Source: headsetcontrol-tray
+Section: utils
+Priority: optional
+Maintainer: Jules <jules@example.com>
+Build-Depends: debhelper-compat (= 13), libdbus-1-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/Sapd/HeadsetControl
+
+Package: headsetcontrol-tray
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, headsetcontrol
+Description: System tray widget for HeadsetControl
+ A graphical wrapper for headsetcontrol using StatusNotifierItem.
+ Supports battery monitoring, sidetone control, and auto power-off.
