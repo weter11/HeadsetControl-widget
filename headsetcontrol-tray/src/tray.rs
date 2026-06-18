@@ -73,7 +73,9 @@ impl Tray for HeadsetTray {
                             let mut cfg = this.config.lock().unwrap();
                             cfg.sidetone_level = level;
                             let _ = save_config(&cfg);
-                            let _ = headset_cli::set_sidetone(level);
+                            tokio::spawn(async move {
+                                let _ = headset_cli::set_sidetone(level).await;
+                            });
                         }),
                         ..Default::default()
                     }.into()
@@ -93,7 +95,9 @@ impl Tray for HeadsetTray {
                             let mut cfg = this.config.lock().unwrap();
                             cfg.inactive_time = m;
                             let _ = save_config(&cfg);
-                            let _ = headset_cli::set_inactive_time(m);
+                            tokio::spawn(async move {
+                                let _ = headset_cli::set_inactive_time(m).await;
+                            });
                         }),
                         ..Default::default()
                     }.into()

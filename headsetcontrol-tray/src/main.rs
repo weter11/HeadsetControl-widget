@@ -26,13 +26,13 @@ async fn main() {
     // Initial sync
     {
         let cfg = config.lock().unwrap();
-        let _ = headset_cli::set_sidetone(cfg.sidetone_level);
-        let _ = headset_cli::set_inactive_time(cfg.inactive_time);
+        let _ = headset_cli::set_sidetone(cfg.sidetone_level).await;
+        let _ = headset_cli::set_inactive_time(cfg.inactive_time).await;
     }
 
     // Background polling loop
     loop {
-        match headset_cli::get_headset_status() {
+        match headset_cli::get_headset_status().await {
             Ok(new_status) => {
                 let mut status_lock = status.lock().unwrap();
 

@@ -49,10 +49,17 @@ impl NotificationManager {
     }
 
     fn send_notification(&self, summary: &str, body: &str) {
-        let _ = Notification::new()
-            .summary(summary)
-            .body(body)
-            .icon("headset")
-            .show();
+        let summary = summary.to_string();
+        let body = body.to_string();
+        // Run on blocking thread pool to avoid nested runtime panic.
+        // notify-rust's .show() calls zbus::block_on() which creates a new
+        // tokio runtime, panicking if called from within an existing runtime.
+        let _ = tokio::task::spawn_blocking(move || {
+            let _ = Notification::new()
+                .summary(&summary)
+                .body(&body)
+                .icon("headset")
+                .show();
+        });
     }
 }
