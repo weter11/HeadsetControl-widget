@@ -1,47 +1,29 @@
 use ksni::{self, menu::*, Tray, ToolTip};
 use std::sync::{Arc, Mutex};
+use tokio::sync::watch;
+use crate::autostart;
 use crate::config::{Config, save_config};
-use crate::headset_cli::{self, HeadsetControlOutput};
+use crate::headset_cli::{self, HeadsetControlOutput, BatteryInfo};
+
+const ASSUMED_CHARGE_TIME_HOURS: f32 = 3.0;
+const ASSUMED_BATTERY_LIFE_HOURS: f32 = 20.0;
 
 pub struct HeadsetTray {
     pub status: Arc<Mutex<Option<HeadsetControlOutput>>>,
     pub config: Arc<Mutex<Config>>,
+    pub shutdown_tx: watch::Sender<bool>,
 }
 
-fn get_autostart_path() -> Option<std::path::PathBuf> {
-    dirs_next::config_dir().map(|mut p| {
-        p.push("autostart");
-        p.push("headsetcontrol-tray.desktop");
-        p
-    })
-}
-
-fn is_autostart_enabled() -> bool {
-    get_autostart_path().map_or(false, |p| p.exists())
-}
-
-fn set_autostart(enabled: bool) {
-    if let Some(path) = get_autostart_path() {
-        if enabled {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let content = r#"[Desktop Entry]
-Name=HeadsetControl Tray
-Comment=Control your headset from the system tray
-Exec=headsetcontrol-tray
-Icon=headset
-Terminal=false
-Type=Application
-Categories=Settings;HardwareSettings;
-StartupNotify=false
-X-GNOME-Autostart-enabled=true
-"#;
-            let _ = std::fs::write(path, content);
-        } else {
-            let _ = std::fs::remove_file(path);
-        }
-    }
+fn format_battery_info(b: &BatteryInfo) -> (String, String) {
+    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
+    let state = if b.status == "BATTERY_CHARGING" {
+        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * ASSUMED_CHARGE_TIME_HOURS)).unwrap_or_default();
+        format!(" (Charging{})", remaining)
+    } else {
+        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * ASSUMED_BATTERY_LIFE_HOURS)).unwrap_or_default();
+        format!(" (Discharging{})", remaining)
+    };
+    (level_str, state)
 }
 
 impl Tray for HeadsetTray {
@@ -50,7 +32,10 @@ impl Tray for HeadsetTray {
     }
 
     fn icon_name(&self) -> String {
-        let status_lock = self.status.lock().unwrap();
+        let status_lock = match self.status.lock() {
+            Ok(lock) => lock,
+            Err(_) => return "audio-headset-disconnected".into(),
+        };
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
                 if let Some(ref b) = device.battery {
@@ -78,7 +63,10 @@ impl Tray for HeadsetTray {
     }
 
     fn title(&self) -> String {
-        let status_lock = self.status.lock().unwrap();
+        let status_lock = match self.status.lock() {
+            Ok(lock) => lock,
+            Err(_) => return "HeadsetControl — Not connected".into(),
+        };
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
                 if let Some(ref b) = device.battery {
@@ -93,11 +81,10 @@ impl Tray for HeadsetTray {
     }
 
     fn tool_tip(&self) -> ToolTip {
-        let status_lock = self.status.lock().unwrap();
-        let config_lock = self.config.lock().unwrap();
-        let config = config_lock.clone();
-        drop(config_lock);
-        drop(status_lock);
+        let config = match self.config.lock() {
+            Ok(lock) => lock.clone(),
+            Err(_) => Default::default(),
+        };
 
         let sidetone_info = format!("Sidetone: {}/128", config.sidetone_level);
         let inactive_info = if config.inactive_time == 0 {
@@ -106,19 +93,21 @@ impl Tray for HeadsetTray {
             format!("Auto-off: {} min", config.inactive_time)
         };
 
-        let status_lock = self.status.lock().unwrap();
+        let status_lock = match self.status.lock() {
+            Ok(lock) => lock,
+            Err(_) => return ToolTip {
+                title: "No headset found".into(),
+                description: format!("Connection status: Disconnected\n{}\n{}", sidetone_info, inactive_info),
+                icon_name: self.icon_name(),
+                icon_pixmap: self.icon_pixmap(),
+            },
+        };
+
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
                 let conn_status = if device.status == "success" { "Connected" } else { "Disconnected" };
                 let battery_info = if let Some(ref b) = device.battery {
-                    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
-                    let state = if b.status == "BATTERY_CHARGING" {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * 3.0)).unwrap_or_default();
-                        format!(" (Charging{})", remaining)
-                    } else {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * 20.0)).unwrap_or_default();
-                        format!(" (Discharging{})", remaining)
-                    };
+                    let (level_str, state) = format_battery_info(b);
                     format!("Battery: {}{}", level_str, state)
                 } else {
                     "Battery: Unknown".into()
@@ -148,9 +137,65 @@ impl Tray for HeadsetTray {
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        let config = self.config.lock().unwrap().clone();
+        let config = match self.config.lock() {
+            Ok(lock) => lock.clone(),
+            Err(_) => Default::default(),
+        };
 
-        vec![
+        let mut menu_items = Vec::new();
+
+        // Get connected device stats (cloning only necessary fields to keep lock-holding minimal)
+        let status_lock = self.status.lock().ok();
+        let device_data = status_lock.as_ref()
+            .and_then(|lock| lock.as_ref())
+            .and_then(|output| output.devices.first())
+            .map(|device| (device.device.clone(), device.battery.clone(), device.status.clone()));
+        drop(status_lock);
+
+        if let Some((device_name, battery, status)) = device_data {
+            if status == "success" {
+                // Add Device Name
+                menu_items.push(StandardItem {
+                    label: format!("Device: {}", device_name),
+                    enabled: false,
+                    ..Default::default()
+                }.into());
+
+                // Add Battery Info
+                if let Some(ref b) = battery {
+                    let (level_str, state) = format_battery_info(b);
+                    menu_items.push(StandardItem {
+                        label: format!("Battery: {}{}", level_str, state),
+                        enabled: false,
+                        ..Default::default()
+                    }.into());
+                }
+
+                // Add Sidetone Info
+                menu_items.push(StandardItem {
+                    label: format!("Sidetone: {}/128", config.sidetone_level),
+                    enabled: false,
+                    ..Default::default()
+                }.into());
+
+                // Add Auto-off Info
+                let inactive_str = if config.inactive_time == 0 {
+                    "Disabled".into()
+                } else {
+                    format!("{} min", config.inactive_time)
+                };
+                menu_items.push(StandardItem {
+                    label: format!("Auto-off: {}", inactive_str),
+                    enabled: false,
+                    ..Default::default()
+                }.into());
+
+                menu_items.push(MenuItem::Separator);
+            }
+        }
+
+        // Add standard controls
+        menu_items.extend(vec![
             // Sidetone Submenu
             SubMenu {
                 label: "Sidetone Level".into(),
@@ -163,7 +208,10 @@ impl Tray for HeadsetTray {
                         label,
                         checked: is_active,
                         activate: Box::new(move |this: &mut Self| {
-                            let mut cfg = this.config.lock().unwrap();
+                            let mut cfg = match this.config.lock() {
+                                Ok(lock) => lock,
+                                Err(_) => return,
+                            };
                             cfg.sidetone_level = level;
                             let _ = save_config(&cfg);
                             std::thread::spawn(move || {
@@ -188,7 +236,10 @@ impl Tray for HeadsetTray {
                         label,
                         checked: config.inactive_time == m,
                         activate: Box::new(move |this: &mut Self| {
-                            let mut cfg = this.config.lock().unwrap();
+                            let mut cfg = match this.config.lock() {
+                                Ok(lock) => lock,
+                                Err(_) => return,
+                            };
                             cfg.inactive_time = m;
                             let _ = save_config(&cfg);
                             std::thread::spawn(move || {
@@ -217,7 +268,10 @@ impl Tray for HeadsetTray {
                                     label: format!("{}%", level),
                                     checked: config.discharge_level == Some(level),
                                     activate: Box::new(move |this: &mut Self| {
-                                        let mut cfg = this.config.lock().unwrap();
+                                        let mut cfg = match this.config.lock() {
+                                            Ok(lock) => lock,
+                                            Err(_) => return,
+                                        };
                                         cfg.discharge_level = Some(level);
                                         let _ = save_config(&cfg);
                                     }),
@@ -228,7 +282,10 @@ impl Tray for HeadsetTray {
                                 label: "Disable".into(),
                                 checked: config.discharge_level.is_none(),
                                 activate: Box::new(|this: &mut Self| {
-                                    let mut cfg = this.config.lock().unwrap();
+                                    let mut cfg = match this.config.lock() {
+                                        Ok(lock) => lock,
+                                        Err(_) => return,
+                                    };
                                     cfg.discharge_level = None;
                                     let _ = save_config(&cfg);
                                 }),
@@ -247,7 +304,10 @@ impl Tray for HeadsetTray {
                                     label: format!("{}%", level),
                                     checked: config.charge_level == Some(level),
                                     activate: Box::new(move |this: &mut Self| {
-                                        let mut cfg = this.config.lock().unwrap();
+                                        let mut cfg = match this.config.lock() {
+                                            Ok(lock) => lock,
+                                            Err(_) => return,
+                                        };
                                         cfg.charge_level = Some(level);
                                         let _ = save_config(&cfg);
                                     }),
@@ -258,7 +318,10 @@ impl Tray for HeadsetTray {
                                 label: "Disable".into(),
                                 checked: config.charge_level.is_none(),
                                 activate: Box::new(|this: &mut Self| {
-                                    let mut cfg = this.config.lock().unwrap();
+                                    let mut cfg = match this.config.lock() {
+                                        Ok(lock) => lock,
+                                        Err(_) => return,
+                                    };
                                     cfg.charge_level = None;
                                     let _ = save_config(&cfg);
                                 }),
@@ -276,10 +339,12 @@ impl Tray for HeadsetTray {
 
             CheckmarkItem {
                 label: "Start on Login".into(),
-                checked: is_autostart_enabled(),
+                checked: autostart::is_autostart_enabled(),
                 activate: Box::new(|_this: &mut Self| {
-                    let currently_enabled = is_autostart_enabled();
-                    set_autostart(!currently_enabled);
+                    let currently_enabled = autostart::is_autostart_enabled();
+                    if let Err(e) = autostart::set_autostart(!currently_enabled) {
+                        eprintln!("Failed to toggle autostart: {}", e);
+                    }
                 }),
                 ..Default::default()
             }.into(),
@@ -288,9 +353,13 @@ impl Tray for HeadsetTray {
 
             StandardItem {
                 label: "Quit".into(),
-                activate: Box::new(|_| std::process::exit(0)),
+                activate: Box::new(|this: &mut Self| {
+                    let _ = this.shutdown_tx.send(true);
+                }),
                 ..Default::default()
             }.into(),
-        ]
+        ]);
+
+        menu_items
     }
 }
