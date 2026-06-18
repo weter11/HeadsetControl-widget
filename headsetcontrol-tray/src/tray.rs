@@ -15,7 +15,10 @@ impl Tray for HeadsetTray {
     }
 
     fn icon_name(&self) -> String {
-        let status_lock = self.status.lock().unwrap();
+        let status_lock = match self.status.lock() {
+            Ok(lock) => lock,
+            Err(_) => return "audio-headphones".into(),
+        };
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
                 if device.status == "success" {
