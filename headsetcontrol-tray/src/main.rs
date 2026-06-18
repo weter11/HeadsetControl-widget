@@ -1,3 +1,4 @@
+mod autostart;
 mod headset_cli;
 mod config;
 mod notifications;

@@ -1,5 +1,6 @@
 use ksni::{self, menu::*, Tray, ToolTip};
 use std::sync::{Arc, Mutex};
+use crate::autostart;
 use crate::config::{Config, save_config};
 use crate::headset_cli::{self, HeadsetControlOutput};
 
@@ -14,7 +15,16 @@ impl Tray for HeadsetTray {
     }
 
     fn icon_name(&self) -> String {
-        "headset".into()
+        let status_lock = self.status.lock().unwrap();
+        if let Some(ref output) = *status_lock {
+            if let Some(device) = output.devices.first() {
+                if device.status == "success" {
+                    return "audio-headset".into();
+                }
+            }
+        }
+        // Disconnected or no data yet — use a dimmed/generic icon
+        "audio-headphones".into()
     }
 
     fn title(&self) -> String {
@@ -170,6 +180,20 @@ impl Tray for HeadsetTray {
                         ..Default::default()
                     }.into(),
                 ],
+                ..Default::default()
+            }.into(),
+
+            MenuItem::Separator,
+
+            CheckmarkItem {
+                label: "Start on Login".into(),
+                checked: autostart::is_autostart_enabled(),
+                activate: Box::new(|_this: &mut Self| {
+                    let currently_enabled = autostart::is_autostart_enabled();
+                    if let Err(e) = autostart::set_autostart(!currently_enabled) {
+                        eprintln!("Failed to toggle autostart: {}", e);
+                    }
+                }),
                 ..Default::default()
             }.into(),
 
