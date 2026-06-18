@@ -47,36 +47,42 @@ async fn main() {
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 match headset_cli::get_headset_status().await {
                     Ok(new_status) => {
-                        let mut status_lock = status.lock().unwrap();
-
-                        // Check for battery notifications
+                        // Check for battery notifications only for connected devices
                         if let Some(device) = new_status.devices.first() {
-                            if let Some(battery) = &device.battery {
-                                if let Some(level) = battery.level {
-                                    let charging = battery.status == "BATTERY_CHARGING";
-                                    let cfg = config.lock().unwrap();
-                                    notification_manager.check(level, charging, &cfg);
+                            if device.status == "success" {
+                                if let Some(battery) = &device.battery {
+                                    if let Some(level) = battery.level {
+                                        let charging = battery.status == "BATTERY_CHARGING";
+                                        let cfg = config.lock().unwrap();
+                                        notification_manager.check(level, charging, &cfg);
+                                    }
                                 }
                             }
                         }
 
+                        let mut status_lock = status.lock().unwrap();
                         *status_lock = Some(new_status);
                         drop(status_lock);
-
-                        if handle.update(|_| {}).await.is_none() {
-                            eprintln!("Tray update failed: handle returned None");
-                            tray_errors += 1;
-                            if tray_errors >= 3 {
-                                eprintln!("Tray unrecoverable, exiting");
-                                std::process::exit(1);
-                            }
-                        } else {
-                            tray_errors = 0;
-                        }
                     }
                     Err(e) => {
                         eprintln!("Error polling headset: {}", e);
+                        // Clear status so tooltip shows disconnected state
+                        let mut status_lock = status.lock().unwrap();
+                        *status_lock = None;
+                        drop(status_lock);
                     }
+                }
+
+                // Always update tray to reflect current state
+                if handle.update(|_| {}).await.is_none() {
+                    eprintln!("Tray update failed: handle returned None");
+                    tray_errors += 1;
+                    if tray_errors >= 3 {
+                        eprintln!("Tray unrecoverable, exiting");
+                        std::process::exit(1);
+                    }
+                } else {
+                    tray_errors = 0;
                 }
             }
         }

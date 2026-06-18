@@ -37,33 +37,47 @@ impl Tray for HeadsetTray {
     }
 
     fn tool_tip(&self) -> ToolTip {
-        let status_lock = self.status.lock().unwrap();
+        let status_lock = match self.status.lock() {
+            Ok(lock) => lock,
+            Err(_) => return ToolTip {
+                title: "HeadsetControl".into(),
+                description: "No headset connected".into(),
+                ..Default::default()
+            },
+        };
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
-                let conn_status = if device.status == "success" { "Connected" } else { "Disconnected" };
-                let battery_info = if let Some(ref b) = device.battery {
-                    let level = b.level.map(|l| format!(": {}%", l)).unwrap_or_default();
-                    let state = if b.status == "BATTERY_CHARGING" { " (Charging)" } else { " (Discharging)" };
-                    format!("Battery{}{}", level, state)
+                if device.status == "success" {
+                    let battery_info = if let Some(ref b) = device.battery {
+                        let level = b.level.map(|l| format!(": {}%", l)).unwrap_or_default();
+                        let state = if b.status == "BATTERY_CHARGING" { " (Charging)" } else { " (Discharging)" };
+                        format!("Battery{}{}", level, state)
+                    } else {
+                        "Battery: Unknown".into()
+                    };
+                    ToolTip {
+                        title: device.device.clone(),
+                        description: format!("Status: Connected\n{}", battery_info),
+                        ..Default::default()
+                    }
                 } else {
-                    "Battery: Unknown".into()
-                };
-                ToolTip {
-                    title: device.device.clone(),
-                    description: format!("Status: {}\n{}", conn_status, battery_info),
-                    ..Default::default()
+                    ToolTip {
+                        title: "HeadsetControl".into(),
+                        description: "No headset connected".into(),
+                        ..Default::default()
+                    }
                 }
             } else {
                 ToolTip {
                     title: "HeadsetControl".into(),
-                    description: "No device found".into(),
+                    description: "No headset connected".into(),
                     ..Default::default()
                 }
             }
         } else {
             ToolTip {
                 title: "HeadsetControl".into(),
-                description: "Disconnected".into(),
+                description: "No headset connected".into(),
                 ..Default::default()
             }
         }
