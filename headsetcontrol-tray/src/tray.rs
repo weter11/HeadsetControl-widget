@@ -1,5 +1,6 @@
 use ksni::{self, menu::*, Tray, ToolTip};
 use std::sync::{Arc, Mutex};
+use tokio::sync::watch;
 use crate::autostart;
 use crate::config::{Config, save_config};
 use crate::headset_cli::{self, HeadsetControlOutput};
@@ -7,6 +8,7 @@ use crate::headset_cli::{self, HeadsetControlOutput};
 pub struct HeadsetTray {
     pub status: Arc<Mutex<Option<HeadsetControlOutput>>>,
     pub config: Arc<Mutex<Config>>,
+    pub shutdown_tx: watch::Sender<bool>,
 }
 
 impl Tray for HeadsetTray {
@@ -204,7 +206,9 @@ impl Tray for HeadsetTray {
 
             StandardItem {
                 label: "Quit".into(),
-                activate: Box::new(|_| std::process::exit(0)),
+                activate: Box::new(|this: &mut Self| {
+                    let _ = this.shutdown_tx.send(true);
+                }),
                 ..Default::default()
             }.into(),
         ]
