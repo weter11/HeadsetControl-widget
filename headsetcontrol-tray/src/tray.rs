@@ -11,12 +11,49 @@ pub struct HeadsetTray {
     pub shutdown_tx: watch::Sender<bool>,
 }
 
+fn get_autostart_path() -> Option<std::path::PathBuf> {
+    dirs_next::config_dir().map(|mut p| {
+        p.push("autostart");
+        p.push("headsetcontrol-tray.desktop");
+        p
+    })
+}
+
+fn is_autostart_enabled() -> bool {
+    get_autostart_path().map_or(false, |p| p.exists())
+}
+
+fn set_autostart(enabled: bool) {
+    if let Some(path) = get_autostart_path() {
+        if enabled {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let content = r#"[Desktop Entry]
+Name=HeadsetControl Tray
+Comment=Control your headset from the system tray
+Exec=headsetcontrol-tray
+Icon=headset
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+"#;
+            let _ = std::fs::write(path, content);
+        } else {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
 impl Tray for HeadsetTray {
     fn id(&self) -> String {
         "headsetcontrol-tray".into()
     }
 
     fn icon_name(&self) -> String {
+<<<<<<< HEAD
         let status_lock = match self.status.lock() {
             Ok(lock) => lock,
             Err(_) => return "audio-headphones".into(),
@@ -30,13 +67,52 @@ impl Tray for HeadsetTray {
         }
         // Disconnected or no data yet — use a dimmed/generic icon
         "audio-headphones".into()
+=======
+        let status_lock = self.status.lock().unwrap();
+        if let Some(ref output) = *status_lock {
+            if let Some(device) = output.devices.first() {
+                if let Some(ref b) = device.battery {
+                    if b.status == "BATTERY_CHARGING" {
+                        return "battery-charging".into();
+                    }
+                    if let Some(level) = b.level {
+                        if level < 20 {
+                            return "battery-caution".into();
+                        }
+                    }
+                }
+                return "audio-headset".into();
+            }
+        }
+        "audio-headset-disconnected".into()
+    }
+
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        vec![ksni::Icon {
+            width: 32,
+            height: 32,
+            data: include_bytes!("../icons/headset.argb").to_vec(),
+        }]
+>>>>>>> origin/master
     }
 
     fn title(&self) -> String {
-        "HeadsetControl".into()
+        let status_lock = self.status.lock().unwrap();
+        if let Some(ref output) = *status_lock {
+            if let Some(device) = output.devices.first() {
+                if let Some(ref b) = device.battery {
+                    if let Some(level) = b.level {
+                        return format!("HeadsetControl — {}% 🔋", level);
+                    }
+                }
+                return "HeadsetControl — Connected".into();
+            }
+        }
+        "HeadsetControl — Not connected".into()
     }
 
     fn tool_tip(&self) -> ToolTip {
+<<<<<<< HEAD
         let status_lock = match self.status.lock() {
             Ok(lock) => lock,
             Err(_) => return ToolTip {
@@ -72,13 +148,64 @@ impl Tray for HeadsetTray {
                     title: "HeadsetControl".into(),
                     description: "No headset connected".into(),
                     ..Default::default()
+=======
+        let status_lock = self.status.lock().unwrap();
+        let config_lock = self.config.lock().unwrap();
+        let config = config_lock.clone();
+        drop(config_lock);
+        drop(status_lock);
+
+        let sidetone_info = format!("Sidetone: {}/128", config.sidetone_level);
+        let inactive_info = if config.inactive_time == 0 {
+            "Auto-off: Disabled".into()
+        } else {
+            format!("Auto-off: {} min", config.inactive_time)
+        };
+
+        let status_lock = self.status.lock().unwrap();
+        if let Some(ref output) = *status_lock {
+            if let Some(device) = output.devices.first() {
+                let conn_status = if device.status == "success" { "Connected" } else { "Disconnected" };
+                let battery_info = if let Some(ref b) = device.battery {
+                    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
+                    let state = if b.status == "BATTERY_CHARGING" {
+                        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * 3.0)).unwrap_or_default();
+                        format!(" (Charging{})", remaining)
+                    } else {
+                        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * 20.0)).unwrap_or_default();
+                        format!(" (Discharging{})", remaining)
+                    };
+                    format!("Battery: {}{}", level_str, state)
+                } else {
+                    "Battery: Unknown".into()
+                };
+                ToolTip {
+                    title: device.device.clone(),
+                    description: format!("Status: {}\n{}\n{}\n{}", conn_status, battery_info, sidetone_info, inactive_info),
+                    icon_name: self.icon_name(),
+                    icon_pixmap: self.icon_pixmap(),
+                }
+            } else {
+                ToolTip {
+                    title: "No headset found".into(),
+                    description: format!("Connection status: Not found\n{}\n{}", sidetone_info, inactive_info),
+                    icon_name: self.icon_name(),
+                    icon_pixmap: self.icon_pixmap(),
+>>>>>>> origin/master
                 }
             }
         } else {
             ToolTip {
+<<<<<<< HEAD
                 title: "HeadsetControl".into(),
                 description: "No headset connected".into(),
                 ..Default::default()
+=======
+                title: "No headset found".into(),
+                description: format!("Connection status: Disconnected\n{}\n{}", sidetone_info, inactive_info),
+                icon_name: self.icon_name(),
+                icon_pixmap: self.icon_pixmap(),
+>>>>>>> origin/master
             }
         }
     }
@@ -102,8 +229,11 @@ impl Tray for HeadsetTray {
                             let mut cfg = this.config.lock().unwrap();
                             cfg.sidetone_level = level;
                             let _ = save_config(&cfg);
-                            tokio::spawn(async move {
-                                let _ = headset_cli::set_sidetone(level).await;
+                            std::thread::spawn(move || {
+                                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                                rt.block_on(async {
+                                    let _ = headset_cli::set_sidetone(level).await;
+                                });
                             });
                         }),
                         ..Default::default()
@@ -124,8 +254,11 @@ impl Tray for HeadsetTray {
                             let mut cfg = this.config.lock().unwrap();
                             cfg.inactive_time = m;
                             let _ = save_config(&cfg);
-                            tokio::spawn(async move {
-                                let _ = headset_cli::set_inactive_time(m).await;
+                            std::thread::spawn(move || {
+                                let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+                                rt.block_on(async {
+                                    let _ = headset_cli::set_inactive_time(m).await;
+                                });
                             });
                         }),
                         ..Default::default()
@@ -206,12 +339,19 @@ impl Tray for HeadsetTray {
 
             CheckmarkItem {
                 label: "Start on Login".into(),
+<<<<<<< HEAD
                 checked: autostart::is_autostart_enabled(),
                 activate: Box::new(|_this: &mut Self| {
                     let currently_enabled = autostart::is_autostart_enabled();
                     if let Err(e) = autostart::set_autostart(!currently_enabled) {
                         eprintln!("Failed to toggle autostart: {}", e);
                     }
+=======
+                checked: is_autostart_enabled(),
+                activate: Box::new(|_this: &mut Self| {
+                    let currently_enabled = is_autostart_enabled();
+                    set_autostart(!currently_enabled);
+>>>>>>> origin/master
                 }),
                 ..Default::default()
             }.into(),
