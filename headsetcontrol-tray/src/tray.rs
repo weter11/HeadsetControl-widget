@@ -3,12 +3,27 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 use crate::autostart;
 use crate::config::{Config, save_config};
-use crate::headset_cli::{self, HeadsetControlOutput};
+use crate::headset_cli::{self, HeadsetControlOutput, BatteryInfo};
+
+const ASSUMED_CHARGE_TIME_HOURS: f32 = 3.0;
+const ASSUMED_BATTERY_LIFE_HOURS: f32 = 20.0;
 
 pub struct HeadsetTray {
     pub status: Arc<Mutex<Option<HeadsetControlOutput>>>,
     pub config: Arc<Mutex<Config>>,
     pub shutdown_tx: watch::Sender<bool>,
+}
+
+fn format_battery_info(b: &BatteryInfo) -> (String, String) {
+    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
+    let state = if b.status == "BATTERY_CHARGING" {
+        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * ASSUMED_CHARGE_TIME_HOURS)).unwrap_or_default();
+        format!(" (Charging{})", remaining)
+    } else {
+        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * ASSUMED_BATTERY_LIFE_HOURS)).unwrap_or_default();
+        format!(" (Discharging{})", remaining)
+    };
+    (level_str, state)
 }
 
 impl Tray for HeadsetTray {
@@ -92,14 +107,7 @@ impl Tray for HeadsetTray {
             if let Some(device) = output.devices.first() {
                 let conn_status = if device.status == "success" { "Connected" } else { "Disconnected" };
                 let battery_info = if let Some(ref b) = device.battery {
-                    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
-                    let state = if b.status == "BATTERY_CHARGING" {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * 3.0)).unwrap_or_default();
-                        format!(" (Charging{})", remaining)
-                    } else {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * 20.0)).unwrap_or_default();
-                        format!(" (Discharging{})", remaining)
-                    };
+                    let (level_str, state) = format_battery_info(b);
                     format!("Battery: {}{}", level_str, state)
                 } else {
                     "Battery: Unknown".into()
@@ -136,32 +144,26 @@ impl Tray for HeadsetTray {
 
         let mut menu_items = Vec::new();
 
-        // Get connected device stats
+        // Get connected device stats (cloning only necessary fields to keep lock-holding minimal)
         let status_lock = self.status.lock().ok();
-        let device_info = status_lock.as_ref()
+        let device_data = status_lock.as_ref()
             .and_then(|lock| lock.as_ref())
-            .and_then(|output| output.devices.first().cloned());
+            .and_then(|output| output.devices.first())
+            .map(|device| (device.device.clone(), device.battery.clone(), device.status.clone()));
         drop(status_lock);
 
-        if let Some(ref device) = device_info {
-            if device.status == "success" {
+        if let Some((device_name, battery, status)) = device_data {
+            if status == "success" {
                 // Add Device Name
                 menu_items.push(StandardItem {
-                    label: format!("Device: {}", device.device),
+                    label: format!("Device: {}", device_name),
                     enabled: false,
                     ..Default::default()
                 }.into());
 
                 // Add Battery Info
-                if let Some(ref b) = device.battery {
-                    let level_str = b.level.map(|l| format!("{}%", l)).unwrap_or_else(|| "Unknown".into());
-                    let state = if b.status == "BATTERY_CHARGING" {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h to full", (100.0 - l as f32) / 100.0 * 3.0)).unwrap_or_default();
-                        format!(" (Charging{})", remaining)
-                    } else {
-                        let remaining = b.level.map(|l| format!(", ~{:.1}h remaining", (l as f32) / 100.0 * 20.0)).unwrap_or_default();
-                        format!(" (Discharging{})", remaining)
-                    };
+                if let Some(ref b) = battery {
+                    let (level_str, state) = format_battery_info(b);
                     menu_items.push(StandardItem {
                         label: format!("Battery: {}{}", level_str, state),
                         enabled: false,
@@ -319,7 +321,7 @@ impl Tray for HeadsetTray {
                                     let mut cfg = match this.config.lock() {
                                         Ok(lock) => lock,
                                         Err(_) => return,
-                                        };
+                                    };
                                     cfg.charge_level = None;
                                     let _ = save_config(&cfg);
                                 }),
