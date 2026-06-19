@@ -166,11 +166,11 @@ impl Tray for HeadsetTray {
         }.into());
 
         menu.push(CheckmarkItem {
-            label: "Reapply settings on startup".into(),
-            checked: config.reapply_on_startup,
+            label: "Set sidetone/inactive time on every connection".into(),
+            checked: config.set_on_connection,
             activate: Box::new(|this: &mut Self| {
                 let mut cfg = this.config.lock().unwrap();
-                cfg.reapply_on_startup = !cfg.reapply_on_startup;
+                cfg.set_on_connection = !cfg.set_on_connection;
                 let _ = save_config(&cfg);
             }),
             ..Default::default()
@@ -195,7 +195,7 @@ impl Tray for HeadsetTray {
                             cfg.sidetone_level = level;
                             let _ = save_config(&cfg);
                             tokio::spawn(async move {
-                                let _ = headset_cli::set_sidetone(level).await;
+                                let _ = headset_cli::set_sidetone(level, false).await;
                             });
                         }),
                         ..Default::default()
@@ -217,7 +217,7 @@ impl Tray for HeadsetTray {
                             cfg.inactive_time = m;
                             let _ = save_config(&cfg);
                             tokio::spawn(async move {
-                                let _ = headset_cli::set_inactive_time(m).await;
+                                let _ = headset_cli::set_inactive_time(m, false).await;
                             });
                         }),
                         ..Default::default()

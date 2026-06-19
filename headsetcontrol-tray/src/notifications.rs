@@ -5,7 +5,7 @@ pub struct NotificationManager {
     last_level: Option<i32>,
     discharged_notified: bool,
     charged_notified: bool,
-    was_connected: bool,
+    pub was_connected: bool,
 }
 
 impl NotificationManager {
