@@ -54,18 +54,18 @@ impl Tray for HeadsetTray {
             if let Some(device) = output.devices.first() {
                 if device.status == "success" {
                     let battery_tracker = self.battery_tracker.lock().unwrap();
-                    let battery_info = if let Some(ref b) = device.battery {
+                    let (percentage, details) = if let Some(ref b) = device.battery {
                         let level = b.level.unwrap_or(0);
                         let charging = b.status == "BATTERY_CHARGING";
                         let estimate = battery_tracker.estimated_remaining(level, charging);
 
                         format_battery_info(level, charging, estimate)
                     } else {
-                        "Battery: Unknown".into()
+                        ("Unknown".into(), "".into())
                     };
                     ToolTip {
                         title: device.device.clone(),
-                        description: format!("Status: Connected\n{}", battery_info),
+                        description: format!("Status: Connected\nBattery: {} {}", percentage, details),
                         icon_name,
                         ..Default::default()
                     }
@@ -97,8 +97,88 @@ impl Tray for HeadsetTray {
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let config = self.config.lock().unwrap().clone();
+        let mut menu = Vec::new();
 
-        vec![
+        // Info Block
+        {
+            let status_lock = self.status.lock().unwrap();
+            if let Some(ref output) = *status_lock {
+                if let Some(device) = output.devices.first() {
+                    if device.status == "success" {
+                        let battery_tracker = self.battery_tracker.lock().unwrap();
+                        let (percentage, details) = if let Some(ref b) = device.battery {
+                            let level = b.level.unwrap_or(0);
+                            let charging = b.status == "BATTERY_CHARGING";
+                            let estimate = battery_tracker.estimated_remaining(level, charging);
+
+                            format_battery_info(level, charging, estimate)
+                        } else {
+                            ("Unknown".into(), "".into())
+                        };
+
+                        menu.push(StandardItem {
+                            label: format!("{} — {}", device.device, percentage),
+                            enabled: false,
+                            ..Default::default()
+                        }.into());
+
+                        if !details.is_empty() {
+                            menu.push(StandardItem {
+                                label: details,
+                                enabled: false,
+                                ..Default::default()
+                            }.into());
+                        }
+                    } else {
+                        menu.push(StandardItem {
+                            label: "No headset connected".into(),
+                            enabled: false,
+                            ..Default::default()
+                        }.into());
+                    }
+                } else {
+                    menu.push(StandardItem {
+                        label: "No headset connected".into(),
+                        enabled: false,
+                        ..Default::default()
+                    }.into());
+                }
+            } else {
+                menu.push(StandardItem {
+                    label: "No headset connected".into(),
+                    enabled: false,
+                    ..Default::default()
+                }.into());
+            }
+        }
+
+        menu.push(MenuItem::Separator);
+
+        menu.push(CheckmarkItem {
+            label: "Show Notifications".into(),
+            checked: config.notifications_enabled,
+            activate: Box::new(|this: &mut Self| {
+                let mut cfg = this.config.lock().unwrap();
+                cfg.notifications_enabled = !cfg.notifications_enabled;
+                let _ = save_config(&cfg);
+            }),
+            ..Default::default()
+        }.into());
+
+        menu.push(CheckmarkItem {
+            label: "Reapply settings on startup".into(),
+            checked: config.reapply_on_startup,
+            activate: Box::new(|this: &mut Self| {
+                let mut cfg = this.config.lock().unwrap();
+                cfg.reapply_on_startup = !cfg.reapply_on_startup;
+                let _ = save_config(&cfg);
+            }),
+            ..Default::default()
+        }.into());
+
+        menu.push(MenuItem::Separator);
+
+        menu.extend(vec![
             // Sidetone Submenu
             SubMenu {
                 label: "Sidetone Level".into(),
@@ -237,19 +317,21 @@ impl Tray for HeadsetTray {
                 }),
                 ..Default::default()
             }.into(),
-        ]
+        ]);
+
+        menu
     }
 }
 
-fn format_battery_info(level: i32, charging: bool, estimate: Option<Duration>) -> String {
-    let state = if charging { " (Charging)" } else { " (Discharging)" };
+fn format_battery_info(level: i32, charging: bool, estimate: Option<Duration>) -> (String, String) {
+    let percentage = format!("{}%", level);
+    let state = if charging { "Charging" } else { "Discharging" };
     let time_clause = if let Some(duration) = estimate {
-        let hours = duration.as_secs() / 3600;
-        let minutes = (duration.as_secs() % 3600) / 60;
-        let suffix = if charging { " to full (rough)" } else { " remaining" };
-        format!(" - {}:{:02}{}", hours, minutes, suffix)
+        let hours = duration.as_secs() as f64 / 3600.0;
+        let suffix = if charging { " to full" } else { "" };
+        format!(", ~{:.1}h{}", hours, suffix)
     } else {
         "".to_string()
     };
-    format!("Battery: {}%{}{}", level, state, time_clause)
+    (percentage, format!("({}{})", state, time_clause))
 }

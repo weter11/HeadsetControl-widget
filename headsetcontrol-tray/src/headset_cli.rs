@@ -43,27 +43,29 @@ pub async fn get_headset_status() -> Result<HeadsetControlOutput, String> {
 }
 
 pub async fn set_sidetone(level: u8) -> Result<(), String> {
-    let status = Command::new("headsetcontrol")
+    let output = Command::new("headsetcontrol")
         .args(&["-s", &level.to_string()])
-        .status()
+        .output()
         .await
         .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
 
-    if !status.success() {
-        return Err("headsetcontrol failed to set sidetone".to_string());
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("headsetcontrol failed to set sidetone: {}", stderr));
     }
     Ok(())
 }
 
 pub async fn set_inactive_time(minutes: u8) -> Result<(), String> {
-    let status = Command::new("headsetcontrol")
+    let output = Command::new("headsetcontrol")
         .args(&["-i", &minutes.to_string()])
-        .status()
+        .output()
         .await
         .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
 
-    if !status.success() {
-        return Err("headsetcontrol failed to set inactive time".to_string());
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("headsetcontrol failed to set inactive time: {}", stderr));
     }
     Ok(())
 }

@@ -8,6 +8,8 @@ pub struct Config {
     pub charge_level: Option<u8>,    // 10, 20, ..., 100 or None (Disable)
     pub sidetone_level: u8,
     pub inactive_time: u8,
+    pub reapply_on_startup: bool,
+    pub notifications_enabled: bool,
 }
 
 impl Default for Config {
@@ -17,6 +19,8 @@ impl Default for Config {
             charge_level: Some(80),
             sidetone_level: 64,
             inactive_time: 0,
+            reapply_on_startup: true,
+            notifications_enabled: true,
         }
     }
 }

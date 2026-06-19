@@ -34,8 +34,14 @@ async fn main() {
     // Initial sync
     {
         let cfg = config.lock().unwrap();
-        let _ = headset_cli::set_sidetone(cfg.sidetone_level).await;
-        let _ = headset_cli::set_inactive_time(cfg.inactive_time).await;
+        if cfg.reapply_on_startup {
+            if let Err(e) = headset_cli::set_sidetone(cfg.sidetone_level).await {
+                eprintln!("Failed to reapply sidetone: {}", e);
+            }
+            if let Err(e) = headset_cli::set_inactive_time(cfg.inactive_time).await {
+                eprintln!("Failed to reapply inactive time: {}", e);
+            }
+        }
     }
 
     let mut tray_errors: u32 = 0;
@@ -52,9 +58,13 @@ async fn main() {
                 match headset_cli::get_headset_status().await {
                     Ok(new_status) => {
                         // Check for connection and battery notifications
+                        let cfg = config.lock().unwrap();
+                        let notifications_enabled = cfg.notifications_enabled;
+                        drop(cfg);
+
                         if let Some(device) = new_status.devices.first() {
                             let is_connected = device.status == "success";
-                            notification_manager.check_connection(is_connected, &device.device);
+                            notification_manager.check_connection(is_connected, &device.device, notifications_enabled);
 
                             if is_connected {
                                 if let Some(battery) = &device.battery {
@@ -73,7 +83,7 @@ async fn main() {
                                 }
                             }
                         } else {
-                            notification_manager.check_connection(false, "Headset");
+                            notification_manager.check_connection(false, "Headset", notifications_enabled);
                         }
 
                         let mut status_lock = status.lock().unwrap();
@@ -82,7 +92,10 @@ async fn main() {
                     }
                     Err(e) => {
                         eprintln!("Error polling headset: {}", e);
-                        notification_manager.check_connection(false, "Headset");
+                        let cfg = config.lock().unwrap();
+                        let notifications_enabled = cfg.notifications_enabled;
+                        drop(cfg);
+                        notification_manager.check_connection(false, "Headset", notifications_enabled);
                         // Clear status so tooltip shows disconnected state
                         let mut status_lock = status.lock().unwrap();
                         *status_lock = None;
