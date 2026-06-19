@@ -1,13 +1,16 @@
 use ksni::{self, menu::*, Tray, ToolTip};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::watch;
 use crate::autostart;
 use crate::config::{Config, save_config};
 use crate::headset_cli::{self, HeadsetControlOutput};
+use crate::battery_rate::BatteryRateTracker;
 
 pub struct HeadsetTray {
     pub status: Arc<Mutex<Option<HeadsetControlOutput>>>,
     pub config: Arc<Mutex<Config>>,
+    pub battery_tracker: Arc<Mutex<BatteryRateTracker>>,
     pub shutdown_tx: watch::Sender<bool>,
 }
 
@@ -37,33 +40,40 @@ impl Tray for HeadsetTray {
     }
 
     fn tool_tip(&self) -> ToolTip {
+        let icon_name = self.icon_name();
         let status_lock = match self.status.lock() {
             Ok(lock) => lock,
             Err(_) => return ToolTip {
                 title: "HeadsetControl".into(),
                 description: "No headset connected".into(),
+                icon_name,
                 ..Default::default()
             },
         };
         if let Some(ref output) = *status_lock {
             if let Some(device) = output.devices.first() {
                 if device.status == "success" {
+                    let battery_tracker = self.battery_tracker.lock().unwrap();
                     let battery_info = if let Some(ref b) = device.battery {
-                        let level = b.level.map(|l| format!(": {}%", l)).unwrap_or_default();
-                        let state = if b.status == "BATTERY_CHARGING" { " (Charging)" } else { " (Discharging)" };
-                        format!("Battery{}{}", level, state)
+                        let level = b.level.unwrap_or(0);
+                        let charging = b.status == "BATTERY_CHARGING";
+                        let estimate = battery_tracker.estimated_remaining(level, charging);
+
+                        format_battery_info(level, charging, estimate)
                     } else {
                         "Battery: Unknown".into()
                     };
                     ToolTip {
                         title: device.device.clone(),
                         description: format!("Status: Connected\n{}", battery_info),
+                        icon_name,
                         ..Default::default()
                     }
                 } else {
                     ToolTip {
                         title: "HeadsetControl".into(),
                         description: "No headset connected".into(),
+                        icon_name,
                         ..Default::default()
                     }
                 }
@@ -71,6 +81,7 @@ impl Tray for HeadsetTray {
                 ToolTip {
                     title: "HeadsetControl".into(),
                     description: "No headset connected".into(),
+                    icon_name,
                     ..Default::default()
                 }
             }
@@ -78,6 +89,7 @@ impl Tray for HeadsetTray {
             ToolTip {
                 title: "HeadsetControl".into(),
                 description: "No headset connected".into(),
+                icon_name,
                 ..Default::default()
             }
         }
@@ -227,4 +239,17 @@ impl Tray for HeadsetTray {
             }.into(),
         ]
     }
+}
+
+fn format_battery_info(level: i32, charging: bool, estimate: Option<Duration>) -> String {
+    let state = if charging { " (Charging)" } else { " (Discharging)" };
+    let time_clause = if let Some(duration) = estimate {
+        let hours = duration.as_secs() / 3600;
+        let minutes = (duration.as_secs() % 3600) / 60;
+        let suffix = if charging { " to full (rough)" } else { " remaining" };
+        format!(" - {}:{:02}{}", hours, minutes, suffix)
+    } else {
+        "".to_string()
+    };
+    format!("Battery: {}%{}{}", level, state, time_clause)
 }

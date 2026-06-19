@@ -3,6 +3,7 @@ mod headset_cli;
 mod config;
 mod notifications;
 mod tray;
+mod battery_rate;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -10,16 +11,19 @@ use ksni::TrayMethods;
 use tokio::sync::watch;
 use crate::tray::HeadsetTray;
 use crate::notifications::NotificationManager;
+use crate::battery_rate::BatteryRateTracker;
 
 #[tokio::main]
 async fn main() {
     let config = Arc::new(Mutex::new(config::load_config()));
     let status = Arc::new(Mutex::new(None));
+    let battery_tracker = Arc::new(Mutex::new(BatteryRateTracker::new()));
     let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
 
     let tray = HeadsetTray {
         status: status.clone(),
         config: config.clone(),
+        battery_tracker: battery_tracker.clone(),
         shutdown_tx,
     };
 
@@ -47,17 +51,29 @@ async fn main() {
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 match headset_cli::get_headset_status().await {
                     Ok(new_status) => {
-                        // Check for battery notifications only for connected devices
+                        // Check for connection and battery notifications
                         if let Some(device) = new_status.devices.first() {
-                            if device.status == "success" {
+                            let is_connected = device.status == "success";
+                            notification_manager.check_connection(is_connected, &device.device);
+
+                            if is_connected {
                                 if let Some(battery) = &device.battery {
                                     if let Some(level) = battery.level {
                                         let charging = battery.status == "BATTERY_CHARGING";
+
+                                        // Update battery rate tracker
+                                        {
+                                            let mut tracker = battery_tracker.lock().unwrap();
+                                            tracker.update(level, charging);
+                                        }
+
                                         let cfg = config.lock().unwrap();
-                                        notification_manager.check(level, charging, &cfg);
+                                        notification_manager.check_battery(level, charging, &cfg);
                                     }
                                 }
                             }
+                        } else {
+                            notification_manager.check_connection(false, "Headset");
                         }
 
                         let mut status_lock = status.lock().unwrap();
@@ -66,6 +82,7 @@ async fn main() {
                     }
                     Err(e) => {
                         eprintln!("Error polling headset: {}", e);
+                        notification_manager.check_connection(false, "Headset");
                         // Clear status so tooltip shows disconnected state
                         let mut status_lock = status.lock().unwrap();
                         *status_lock = None;
