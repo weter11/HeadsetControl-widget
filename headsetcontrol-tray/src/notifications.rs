@@ -5,6 +5,7 @@ pub struct NotificationManager {
     last_level: Option<i32>,
     discharged_notified: bool,
     charged_notified: bool,
+    was_connected: bool,
 }
 
 impl NotificationManager {
@@ -13,10 +14,20 @@ impl NotificationManager {
             last_level: None,
             discharged_notified: false,
             charged_notified: false,
+            was_connected: false,
         }
     }
 
-    pub fn check(&mut self, current_level: i32, charging: bool, config: &Config) {
+    pub fn check_connection(&mut self, currently_connected: bool, device_name: &str) {
+        if currently_connected && !self.was_connected {
+            self.send_notification("Headset Connected", device_name);
+        } else if !currently_connected && self.was_connected {
+            self.send_notification("Headset Disconnected", device_name);
+        }
+        self.was_connected = currently_connected;
+    }
+
+    pub fn check_battery(&mut self, current_level: i32, charging: bool, config: &Config) {
         if let Some(discharge_threshold) = config.discharge_level {
             if !charging && current_level <= discharge_threshold as i32 {
                 if !self.discharged_notified {
