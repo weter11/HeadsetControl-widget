@@ -5,7 +5,7 @@ pub struct NotificationManager {
     last_level: Option<i32>,
     discharged_notified: bool,
     charged_notified: bool,
-    was_connected: bool,
+    pub was_connected: bool,
 }
 
 impl NotificationManager {
@@ -18,11 +18,13 @@ impl NotificationManager {
         }
     }
 
-    pub fn check_connection(&mut self, currently_connected: bool, device_name: &str) {
-        if currently_connected && !self.was_connected {
-            self.send_notification("Headset Connected", device_name);
-        } else if !currently_connected && self.was_connected {
-            self.send_notification("Headset Disconnected", device_name);
+    pub fn check_connection(&mut self, currently_connected: bool, device_name: &str, enabled: bool) {
+        if enabled {
+            if currently_connected && !self.was_connected {
+                self.send_notification("Headset Connected", device_name);
+            } else if !currently_connected && self.was_connected {
+                self.send_notification("Headset Disconnected", device_name);
+            }
         }
         self.was_connected = currently_connected;
     }
@@ -31,10 +33,12 @@ impl NotificationManager {
         if let Some(discharge_threshold) = config.discharge_level {
             if !charging && current_level <= discharge_threshold as i32 {
                 if !self.discharged_notified {
-                    self.send_notification(
-                        "Headset Battery Low",
-                        &format!("Battery level is at {}%", current_level),
-                    );
+                    if config.notifications_enabled {
+                        self.send_notification(
+                            "Headset Battery Low",
+                            &format!("Battery level is at {}%", current_level),
+                        );
+                    }
                     self.discharged_notified = true;
                 }
             } else if current_level > discharge_threshold as i32 {
@@ -45,10 +49,12 @@ impl NotificationManager {
         if let Some(charge_threshold) = config.charge_level {
             if charging && current_level >= charge_threshold as i32 {
                 if !self.charged_notified {
-                    self.send_notification(
-                        "Headset Battery Charged",
-                        &format!("Battery level is at {}%", current_level),
-                    );
+                    if config.notifications_enabled {
+                        self.send_notification(
+                            "Headset Battery Charged",
+                            &format!("Battery level is at {}%", current_level),
+                        );
+                    }
                     self.charged_notified = true;
                 }
             } else if current_level < charge_threshold as i32 {

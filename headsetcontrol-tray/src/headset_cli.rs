@@ -42,28 +42,51 @@ pub async fn get_headset_status() -> Result<HeadsetControlOutput, String> {
         .map_err(|e| format!("Failed to parse headsetcontrol output: {}", e))
 }
 
-pub async fn set_sidetone(level: u8) -> Result<(), String> {
-    let status = Command::new("headsetcontrol")
-        .args(&["-s", &level.to_string()])
+pub async fn print_device_info() {
+    let _ = Command::new("headsetcontrol")
+        .arg("-b")
         .status()
-        .await
-        .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+        .await;
+}
 
-    if !status.success() {
-        return Err("headsetcontrol failed to set sidetone".to_string());
+pub async fn set_sidetone(level: u8, verbose: bool) -> Result<(), String> {
+    let mut cmd = Command::new("headsetcontrol");
+    cmd.args(&["-s", &level.to_string()]);
+
+    if verbose {
+        let status = cmd.status().await
+            .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+        if !status.success() {
+            return Err("headsetcontrol failed to set sidetone".to_string());
+        }
+    } else {
+        let output = cmd.output().await
+            .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("headsetcontrol failed to set sidetone: {}", stderr));
+        }
     }
     Ok(())
 }
 
-pub async fn set_inactive_time(minutes: u8) -> Result<(), String> {
-    let status = Command::new("headsetcontrol")
-        .args(&["-i", &minutes.to_string()])
-        .status()
-        .await
-        .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+pub async fn set_inactive_time(minutes: u8, verbose: bool) -> Result<(), String> {
+    let mut cmd = Command::new("headsetcontrol");
+    cmd.args(&["-i", &minutes.to_string()]);
 
-    if !status.success() {
-        return Err("headsetcontrol failed to set inactive time".to_string());
+    if verbose {
+        let status = cmd.status().await
+            .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+        if !status.success() {
+            return Err("headsetcontrol failed to set inactive time".to_string());
+        }
+    } else {
+        let output = cmd.output().await
+            .map_err(|e| format!("Failed to execute headsetcontrol: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("headsetcontrol failed to set inactive time: {}", stderr));
+        }
     }
     Ok(())
 }

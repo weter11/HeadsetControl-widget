@@ -11,3 +11,4 @@ override_dh_auto_install:
 	install -D -m 644 headsetcontrol-tray.desktop debian/headsetcontrol-tray/usr/share/applications/headsetcontrol-tray.desktop
 	install -D -m 644 headsetcontrol-tray.desktop debian/headsetcontrol-tray/etc/xdg/autostart/headsetcontrol-tray.desktop
 	install -D -m 644 headsetcontrol-tray.service debian/headsetcontrol-tray/usr/lib/systemd/user/headsetcontrol-tray.service
+	install -D -m 644 icons/headset.svg debian/headsetcontrol-tray/usr/share/icons/hicolor/scalable/apps/headset.svg
