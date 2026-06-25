@@ -245,7 +245,7 @@ headsetcontrol --test-device -b
 ## GUI Applications
 
 ### Linux
-- [headsetcontrol-tray](headsetcontrol-tray/) - Official Rust system tray widget with compact status, sidetone/inactive time control, and battery/connection notifications.
+- [headsetcontrol-tray](headsetcontrol-tray/) - Rust system tray widget with compact status, sidetone/inactive time control, and battery/connection notifications.
 - [gnome-shell-extension-HeadsetControl](https://github.com/ChrisLauinger77/gnome-shell-extension-HeadsetControl/) - GNOME shell extension (GNOME 42+)
 - [headset-charge-indicator](https://github.com/centic9/headset-charge-indicator/) - System tray with controls (Python)
 - [headset-battery-indicator](https://github.com/ruflas/headset-battery-indicator) - Tray icon with ChatMix, Sidetone controls (Python/Qt)
